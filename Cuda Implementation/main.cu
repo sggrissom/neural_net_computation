@@ -24,7 +24,7 @@ int main(int argc, char* argv[])
 	float beta = 0.3;
 	float alpha = 0.1;
 	float thresh = 0.1;
-	int maxIterations = 1000000;
+	int maxIterations = 100000000;
 	
 	// Initialize host variables ----------------------------------------------
 	float** out;
@@ -42,14 +42,14 @@ int main(int argc, char* argv[])
 	enum Mode {CPU_NORMAL = 1, GPU_NAIVE, GPU_IMPROVED };
 	Mode mode;
 	enum DataSet {XOR = 1, MUSHROOM };
-	DataSet data;
+	DataSet dataSrc;
 
 	if(argc == 2) {
 		mode = (Mode) atoi(argv[1]);
-		data = XOR;
+		dataSrc = (DataSet) XOR;
 	} else if(argc == 3) {
 		mode = (Mode) atoi(argv[1]);
-		data = atoi(argv[2]);
+		dataSrc = (DataSet) atoi(argv[2]);
 	} else {
 		printf("\n    Invalid input parameters."
 				"\n"
@@ -60,12 +60,16 @@ int main(int argc, char* argv[])
 		exit(0);
 	}
 
+	if (dataSrc == XOR) {
+	;	
+	}
+
 	printf("\nSetting up the problem..."); fflush(stdout);
 	startTime(&timer);
 
-	lsize= (int) malloc(numl * sizeof(int));
+	lsize= (int*) malloc(numl * sizeof(int));
 
-	int i;
+	int i, j, k;
 
 	for(i=0;i<numl;i++){
 		if (i == numl-1)
@@ -93,7 +97,7 @@ int main(int argc, char* argv[])
 
 		for(i=1;i<numl;i++){
 			weight[i]=(float**) malloc(lsize[i] * sizeof(float*));
-			for(int j=0;j<lsize[i];j++){
+			for(j=0;j<lsize[i];j++){
 				weight[i][j]=(float*) malloc(lsize[i] * sizeof(float));
 			}
 		}
@@ -103,7 +107,7 @@ int main(int argc, char* argv[])
 
 		for(i=1;i<numl;i++){
 			prevDwt[i]=(float**) malloc(lsize[i] * sizeof(float*));
-			for(int j=0;j<lsize[i];j++){
+			for(j=0;j<lsize[i];j++){
 				prevDwt[i][j]=(float*) malloc(lsize[i] * sizeof(float));
 			}
 		}
@@ -111,14 +115,14 @@ int main(int argc, char* argv[])
 	//	seed and assign random weights
 	srand((unsigned)(time(NULL)));
 	for(i=1;i<numl;i++)
-		for(int j=0;j<lsize[i];j++)
-			for(int k=0;k<lsize[i-1]+1;k++)
+		for(j=0;j<lsize[i];j++)
+			for(k=0;k<lsize[i-1]+1;k++)
 				weight[i][j][k]=(double)(rand())/(RAND_MAX/2) - 1;//32767
 
 	//	initialize previous weights to 0 for first iteration
 	for(i=1;i<numl;i++)
-		for(int j=0;j<lsize[i];j++)
-			for(int k=0;k<lsize[i-1]+1;k++)
+		for(j=0;j<lsize[i];j++)
+			for(k=0;k<lsize[i-1]+1;k++)
 				prevDwt[i][j][k]=(double)0.0;
 
 
@@ -155,9 +159,11 @@ int main(int argc, char* argv[])
 		printf("(CPU normal version)...");fflush(stdout);
 		startTime(&timer);
 
+		float mse;
+
 		for (i = 0; i < maxIterations; ++i)
 		{
-			cpu_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],&data[(i%dataPoints)*(inputSize+outputSize) + inputSize],
+			cpu_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],data[(i%dataPoints)*(inputSize+outputSize) + inputSize],
 					out, delta, weight, numl, lsize, beta, alpha, prevDwt);
 		}
 
@@ -200,11 +206,11 @@ int main(int argc, char* argv[])
 	float guess;
 	int correct = 0, incorrect = 0;
 
-	for (int i = 0; i < dataPoints; ++i)
+	for (i = 0; i < dataPoints; ++i)
 	{
 		cpu_ffwd(&data[i*(inputSize+outputSize)], out, weight, numl, lsize);
-		actual = data[i*(inputSize+outputSize) + inputSize];
-		guess = out[numl-1][i]; 
+		actual = (int) data[i*(inputSize+outputSize) + inputSize];
+		guess = out[numl-1][0]; 
 		prediction = (int)(guess + 0.5);
 		if (prediction == actual)
 		{
@@ -214,14 +220,21 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	for ( i = 0 ; i < dataPoints ; ++i )
+	{
+		cpu_ffwd(&data[i*(inputSize+outputSize)], out, weight, numl, lsize);
+		for (j=0; j < inputSize; ++j)
+		{
+			printf("%f ", data[i*(inputSize+outputSize)+j]);
+		}
+		printf("Ans: %f Guess: %f\n", data[i*(inputSize+outputSize) + inputSize],  out[numl-1][0]);
+	}
+
 	float accuracy = ((float)correct)/((float)(correct+incorrect));
 	printf("%.2f%% accurate.\n", accuracy * 100);
 
 	// Free memory ------------------------------------------------------------
 
-	for(i=0;i<numl;i++){
-		free(lsize[i]);
-	}
 	free(lsize);
 
 	for( i=0;i<numl;i++){
@@ -235,7 +248,7 @@ int main(int argc, char* argv[])
 	free(delta);
 
 	for(i=1;i<numl;i++){
-		for(int j=0;j<lsize[i];j++){
+		for(j=0;j<lsize[i];j++){
 			free(weight[i][j]);
 		}
 		free(weight[i]);
@@ -243,7 +256,7 @@ int main(int argc, char* argv[])
 	free(weight);
 
 	for(i=1;i<numl;i++){
-		for(int j=0;j<lsize[i];j++){
+		for(j=0;j<lsize[i];j++){
 			free(prevDwt[i][j]);
 		}
 		free(prevDwt[i]);

@@ -2,7 +2,7 @@
 NVCC        = nvcc
 NVCC_FLAGS  = -O3 -I/usr/local/cuda/include -arch=sm_20
 LD_FLAGS    = -lcudart -L/usr/local/cuda/lib64
-EXE	        = neuralNet
+EXE	        = nueralNet
 OBJ	        = main.o support.o
 
 default: $(EXE)
