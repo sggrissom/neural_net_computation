@@ -3,6 +3,9 @@ NVCC_FLAGS  = -O3 -I/usr/local/cuda/include -arch=sm_20
 LD_FLAGS    = -lcudart -L/usr/local/cuda/lib64
 EXE         = neuralNet
 OBJ         = main.o support.o
+ifndef $(ARG)
+	ARG = 2
+endif
 
 default: $(EXE)
 
@@ -17,6 +20,9 @@ $(EXE): $(OBJ)
 
 open:
 	vim -O $(EXE).o* $(EXE).e*
+
+run: default
+	submitjob $(EXE) $(ARG)
 
 rmout:
 	rm -rf $(EXE).o* $(EXE).e*

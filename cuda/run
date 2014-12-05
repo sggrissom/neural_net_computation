@@ -1,9 +1,0 @@
-#!/bin/bash
-
-clean
-
-make
-
-#submit current build as CPU
-submitjob neuralNet 2
-
