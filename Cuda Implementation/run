@@ -1,10 +1,9 @@
-make clean
+#!/bin/bash
+
+clean
 
 make
 
-#remove old results files
-rm -rf *.o* *.e*
-
 #submit current build as CPU
-submitjob nueralNet 1
+submitjob neuralNet 2
 
