@@ -1,3 +1,4 @@
-**/*.o
+**/*.o*
+**/*.e*
 cuda/neuralNet
 cpp/nnTest
