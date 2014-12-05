@@ -15,5 +15,13 @@ support.o: support.cu support.h
 $(EXE): $(OBJ)
 	$(NVCC) $(OBJ) -o $(EXE) $(LD_FLAGS)
 
+open:
+	vim -O $(EXE).o* $(EXE).e*
+
+rmout:
+	rm -rf $(EXE).o* $(EXE).e*
+
 clean:
 	rm -rf *.o $(EXE)
+
+cleanall: rmout clean

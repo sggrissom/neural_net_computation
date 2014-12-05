@@ -1,5 +1,0 @@
-#!/bin/bash
-
-#remove old run files
-rm -rf *.o* *.e* neuralNet
-
