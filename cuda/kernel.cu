@@ -5,20 +5,22 @@
   GPU main computation kernels
  *******************************************************************************/
 
-__global__ void gpu_naive_kernel(double *in,double *tgt,
-		double **out,
-		double **delta,
-		double ***weight,
-		int *numl,
+__global__ void gpu_naive_kernel(float *in,float *tgt,
+		float *out,
+		float *delta,
+		int *rowptr_od,
+		float *weight,
+		int numl,
 		int *lsize,
-		double *beta,
-		double *alpha,
-		double*** prevDwt) {
+		float beta,
+		float alpha,
+		float *prevDwt,
+		int *rowptr_w) {
 
 	int idx = threadIdx.x + blockDim.x * blockIdx.x;
 
 
-	double sum;
+	float sum;
 
 	//	update output values for each neuron
 
@@ -41,7 +43,7 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 				sum+= out[idx-1][k]*weight[idx][j][k];	// Apply weight to inputs and add to sum
 			}
 			sum+=weight[idx][j][lsize[idx-1]];		// Apply bias
-			out[idx][j]=(double)(1/(1+exp(-sum)));
+			out[idx][j]=(float)(1/(1+exp(-sum)));
 		}
 	}
 
@@ -89,15 +91,17 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 	}
 }
 
-__global__ void gpu_improved_kernel(double *in,double *tgt,
-		double **out,
-		double **delta,
-		double ***weight,
-		int *numl,
+__global__ void gpu_improved_kernel(float *in,float *tgt,
+		float *out,
+		float *delta,
+		int *rowptr_od,
+		float *weight,
+		int numl,
 		int *lsize,
-		double *beta,
-		double *alpha,
-		double*** prevDwt) {
+		float beta,
+		float alpha,
+		float *prevDwt,
+		int *rowptr_w) {
 
 	int idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx < lsize[0])
@@ -109,15 +113,17 @@ __global__ void gpu_improved_kernel(double *in,double *tgt,
   Main computation functions
  *******************************************************************************/
 
-void gpu_naive_bpgt(double *in,double *tgt,
-		double **out,
-		double **delta,
-		double ***weight,
-		int *numl,
+void gpu_naive_bpgt(float *in,float *tgt,
+		float *out,
+		float *delta,
+		int *rowptr_od,
+		float *weight,
+		int numl,
 		int *lsize,
-		double *beta,
-		double *alpha,
-		double*** prevDwt) {
+		float beta,
+		float alpha,
+		float *prevDwt,
+		int *rowptr_w) {
 
 	const unsigned int numThreadsPerBlock = 512;
 	const unsigned int numBlocks = (128 - 1)/numThreadsPerBlock + 1;
@@ -125,15 +131,17 @@ void gpu_naive_bpgt(double *in,double *tgt,
 		(in,tgt,out,delta,weight,numl,lsize,beta,alpha,prevDwt);
 }
 
-void gpu_improved_bpgt(double *in,double *tgt,
-		double **out,
-		double **delta,
-		double ***weight,
-		int *numl,
+void gpu_improved_bpgt(float *in,float *tgt,
+		float *out,
+		float *delta,
+		int *rowptr_od,
+		float *weight,
+		int numl,
 		int *lsize,
-		double *beta,
-		double *alpha,
-		double*** prevDwt) {
+		float beta,
+		float alpha,
+		float *prevDwt,
+		int *rowptr_w) {
 
 	const unsigned int numThreadsPerBlock = 512;
 	const unsigned int numBlocks = (128 - 1)/numThreadsPerBlock + 1;
@@ -146,17 +154,19 @@ void gpu_improved_bpgt(double *in,double *tgt,
 
 //	backpropogate errors from output
 //	layer uptill the first hidden layer
-void cpu_bpgt(double *in,double *tgt,
-		double **out,
-		double **delta,
-		double ***weight,
-		int *numl,
+void cpu_bpgt(float *in,float *tgt,
+		float *out,
+		float *delta,
+		int *rowptr_od,
+		float *weight,
+		int numl,
 		int *lsize,
-		double *beta,
-		double *alpha,
-		double*** prevDwt)
+		float beta,
+		float alpha,
+		float *prevDwt,
+		int *rowptr_w)
 {
-	double sum;
+	float sum;
 	int i;
 
 	//	update output values for each neuron
@@ -177,7 +187,7 @@ void cpu_bpgt(double *in,double *tgt,
 				sum+= out[i-1][k]*weight[i][j][k];	// Apply weight to inputs and add to sum
 			}
 			sum+=weight[i][j][lsize[i-1]];		// Apply bias
-			out[i][j]=(double)(1/(1+exp(-sum)));
+			out[i][j]=(float)(1/(1+exp(-sum)));
 		}
 	}
 
@@ -224,13 +234,13 @@ void cpu_bpgt(double *in,double *tgt,
 
 
 // feed forward one set of input
-void ffwd(double *in,
-		double **out,
-		double ***weight,
-		int *numl,
+void ffwd(float *in,
+		float *out,
+		float *weight,
+		int numl,
 		int *lsize)
 {
-	double sum;
+	float sum;
 	int i=0;
 
 	//	assign content to input layer
@@ -248,7 +258,7 @@ void ffwd(double *in,
 				sum+= out[i-1][k]*weight[i][j][k];	// Apply weight to inputs and add to sum
 			}
 			sum+=weight[i][j][lsize[i-1]];		// Apply bias
-			out[i][j]=(double)(1/(1+exp(-sum)));
+			out[i][j]=(float)(1/(1+exp(-sum)));
 		}
 	}
 }

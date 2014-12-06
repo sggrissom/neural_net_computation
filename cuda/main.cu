@@ -12,8 +12,6 @@ using std::endl;
 
 int main(int argc, char* argv[])
 {
-	printf("Let's begin");
-
 	enum Mode {CPU_NORMAL = 1, GPU_NAIVE, GPU_IMPROVED};
 	Mode mode;
 	enum DataSet {XOR = 1};
@@ -24,7 +22,7 @@ int main(int argc, char* argv[])
 		dataSet = XOR;
 	} else if(argc == 2) {
 		mode = (Mode) atoi(argv[1]);
-		dataSet = XOR; 
+		dataSet = XOR;
 	} else if(argc == 3) {
 		mode = (Mode) atoi(argv[1]);
 		dataSet = (DataSet) atoi(argv[2]);
@@ -44,11 +42,9 @@ int main(int argc, char* argv[])
 	int dataPoints = 8;
 	int testPoints = 8;
 
-	double*data;
-	double *data_d;
-
-	if(dataSet==XOR) {
-		double xorData[]={
+	float *data;
+	if (dataSet==XOR) {
+		float xorData[]={
 			0,	0,	0,	0,
 			0,	0,	1,	1,
 			0,	1,	0,	1,
@@ -61,168 +57,141 @@ int main(int argc, char* argv[])
 		data = xorData;
 	}
 
-	int sz[4] = {inputSize,
-		inputSize-1,
-		inputSize-2,
-		outputSize};
+	int *lsize = new int[4];
+	lsize[0] = inputSize;
+	lsize[1] = inputSize-1;
+	lsize[2] = inputSize-2;
+	lsize[3] = outputSize;
 
 	int i;
 
-	double beta = 0.3, alpha = 0.1;
-	double *beta_d;
-	double *alpha_d;
+	float beta = 0.3, alpha = 0.1;
 	long num_iter = 2000000;
 
-	double **out;
-	double **out_d;
-	double **delta;
-	double **delta_d;
-	double ***weight;
-	double ***weight_d;
+	float *out;
+	float *delta;
+	float *weight;
 	int numl=4;
-	int*numl_d;
-	int *lsize = new int[numl];
-	int *lsize_d;
-	for(i=0;i<numl;i++){
-		lsize[i]=sz[i];
+	float *prevDwt;
+
+	int numn = 0;
+	int rowptr_od[numl+1];
+	for(int i=0; i<numl; i++) {
+		rowptr_od[i] = numn;
+		numn += lsize[i];
 	}
-	double ***prevDwt;
-	double ***prevDwt_d;
+	rowptr_od[numl] = numn;
 
-	out = new double*[numl];
+	// Allocate memory for out, delta
+	out = new float[numn];
+	delta = new float[numn];
 
-	for( i=0;i<numl;i++){
-		out[i]=new double[lsize[i]];
+	// Allocate memory for weights, prevDwt
+	int numw = 0;
+	int rowptr_w[numl+1];
+	for(int i=0; i<numl-1; i++) {
+		rowptr_w[i] = numw;
+		numw += lsize[i]*lsize[i+1];
 	}
+	weight = new float[numw];
+	prevDwt = new float[numw];
 
-	//	allocate memory for delta
-	delta = new double*[numl];
-
-	for(i=1;i<numl;i++){
-		delta[i]=new double[lsize[i]];
-	}
-
-	//	allocate memory for weights
-	weight = new double**[numl];
-
-	for(i=1;i<numl;i++){
-		weight[i]=new double*[lsize[i]];
-	}
-	for(i=1;i<numl;i++){
-		for(int j=0;j<lsize[i];j++){
-			weight[i][j]=new double[lsize[i-1]+1];
-		}
-	}
-
-	//	allocate memory for previous weights
-	prevDwt = new double**[numl];
-
-	for(i=1;i<numl;i++){
-		prevDwt[i]=new double*[lsize[i]];
-
-	}
-	for(i=1;i<numl;i++){
-		for(int j=0;j<lsize[i];j++){
-			prevDwt[i][j]=new double[lsize[i-1]+1];
-		}
-	}
-
-	//	seed and assign random weights
+	// Seed and assign random weights; set prevDwt to 0 for first iter
 	srand((unsigned)(time(NULL)));
-	for(i=1;i<numl;i++)
-		for(int j=0;j<lsize[i];j++)
-			for(int k=0;k<lsize[i-1]+1;k++)
-				weight[i][j][k]=(double)(rand())/(RAND_MAX/2) - 1;//32767
-
-	//	initialize previous weights to 0 for first iteration
-	for(i=1;i<numl;i++)
-		for(int j=0;j<lsize[i];j++)
-			for(int k=0;k<lsize[i-1]+1;k++)
-				prevDwt[i][j][k]=(double)0.0;
+	for(i=1;i<numw;i++) {
+		weight[i] = (float)(rand())/(RAND_MAX/2) - 1;//32767
+		prevDwt[i] = (float)0.0;
+	}
 
 	stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 
-	// Allocate device variables ----------------------------------------------
+	// Allocate device variables ------------------------------------------
+
+	float *data_d;
+	float *out_d;
+	float *delta_d;
+	int *rowptr_od_d;
+	float *weight_d;
+	float *prevDwt_d;
+	int *rowptr_w_d;
+	int *lsize_d;
 
 	if(mode != CPU_NORMAL) {
-		printf("Allocating device variables..."); fflush(stdout);
+		printf("Allocating device variables...\n"); fflush(stdout);
 		startTime(&timer);
 
-		cuda_ret = cudaMalloc((void**)&data_d, (inputSize+outputSize) * sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&out_d, numl * sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&delta_d, numl * sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&weight_d, numl * sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&lsize_d, numl * sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&prevDwt, numl * sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&alpha_d, sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&beta_d, sizeof(double));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&numl_d, sizeof(int));
-		if(cuda_ret != cudaSuccess) FATAL("Unable to allocate device memory");
-
-
+		cuda_ret = cudaMalloc((void**)&data_d,
+				(inputSize+outputSize)*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&out_d, numn*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&delta_d, numn*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&rowptr_od,
+				(numl+1)*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&weight_d, numw*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&prevDwt_d, numw*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&rowptr_w_d, numw*sizeof(float));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
+		cuda_ret = cudaMalloc((void**)&lsize_d, numl*sizeof(int));
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to allocate device memory");
 
 		cudaDeviceSynchronize();
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 	}
 
-	// Copy host variables to device ------------------------------------------
+	// Copy host varibles to device ---------------------------------------
 
 	if(mode != CPU_NORMAL) {
-		printf("Copying data from host to device..."); fflush(stdout);
+		printf("Copying data from host to device...\n");fflush(stdout);
 		startTime(&timer);
 
 		cuda_ret = cudaMemcpy(data_d, data,
-				(inputSize+outputSize) * sizeof(double), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) FATAL("Unable to set device memory");
-
-		cuda_ret = cudaMemcpy(delta_d, delta,
-				numl * sizeof(double), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) {
-			FATAL("Unable to copy memory to the device");
-		}
-		cuda_ret = cudaMemcpy(weight_d, weight,
-				numl * sizeof(double), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) {
-			FATAL("Unable to copy memory to the device");
-		}
-		cuda_ret = cudaMemcpy(lsize_d, lsize,
-				numl * sizeof(double), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) {
-			FATAL("Unable to copy memory to the device");
-		}
-		
-
-		cuda_ret = cudaMemcpy(alpha_d,(double*)&alpha,
-				sizeof(double), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) {
-			FATAL("Unable to copy memory to the device");
-		}
-
-		cuda_ret = cudaMemcpy(beta_d, (double*) &beta,
-				sizeof(double), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) {
-			FATAL("Unable to copy memory to the device");
-		}
-
-		cuda_ret = cudaMemcpy(numl_d, (int*) &numl,
-				sizeof(int), cudaMemcpyHostToDevice);
-		if(cuda_ret != cudaSuccess) {
-			FATAL("Unable to copy memory to the device");
-		}
+				(inputSize+outputSize)*sizeof(float),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(out_d, out, numn*sizeof(float),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(delta_d, delta, numn*sizeof(float),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(weight_d, weight, numw*sizeof(float),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(prevDwt_d, prevDwt, numw*sizeof(float),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(rowptr_w_d, rowptr_w, numw*sizeof(float),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(lsize_d, lsize, numl*sizeof(int),
+				cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
 
 		cudaDeviceSynchronize();
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
 	}
 
-	// Launch kernel ----------------------------------------------------------
+	// Launch kernel ------------------------------------------------------
 
 	printf("Launching kernel ");
 
@@ -235,7 +204,8 @@ int main(int argc, char* argv[])
 		{
 			cpu_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],
 					&data[(i%dataPoints)*(inputSize+outputSize) + inputSize],
-					out, delta,weight,&numl,lsize,&beta,&alpha,prevDwt);
+					out,delta,rowptr_od,weight,numl,lsize,beta,
+					alpha,prevDwt,rowptr_w);
 		}
 
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
@@ -248,7 +218,8 @@ int main(int argc, char* argv[])
 		{
 			gpu_naive_bpgt(&data_d[(i%dataPoints)*(inputSize+outputSize)],
 					&data_d[(i%dataPoints)*(inputSize+outputSize) + inputSize],
-					out_d, delta_d,weight_d,numl_d,lsize_d,beta_d,alpha_d,prevDwt_d);
+					out_d,delta_d,rowptr_od_d,weight_d,numl,lsize_d,beta,
+					alpha,prevDwt_d,rowptr_w_d);
 		}
 
 		cuda_ret = cudaDeviceSynchronize();
@@ -263,7 +234,8 @@ int main(int argc, char* argv[])
 		{
 			gpu_improved_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],
 					&data[(i%dataPoints)*(inputSize+outputSize) + inputSize],
-					out_d, delta_d,weight_d,numl_d,lsize_d,beta_d,alpha_d,prevDwt_d);
+					out_d,delta_d,rowptr_od_d,weight_d,numl,lsize_d,beta,
+					alpha,prevDwt_d,rowptr_w_d);
 		}
 
 		cuda_ret = cudaDeviceSynchronize();
@@ -281,9 +253,9 @@ int main(int argc, char* argv[])
 		printf("Copying data from device to host..."); fflush(stdout);
 		startTime(&timer);
 
-		cuda_ret = cudaMemcpy(out, out_d, numl * sizeof(double),
+/*		cuda_ret = cudaMemcpy(out, out_d, numl * sizeof(float),
 				cudaMemcpyDeviceToHost);
-		if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to host");
+		if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to host");*/
 
 		cudaDeviceSynchronize();
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
@@ -301,24 +273,25 @@ int main(int argc, char* argv[])
 	for ( i = 0 ; i < testPoints ; ++i )
 	{
 		ffwd(&data[i*(inputSize+outputSize)],
-				out,weight,&numl,lsize);
+				out,weight,numl,lsize);
 		for (int j=0; j < inputSize; ++j)
 		{
 			cout << data[i*(inputSize+outputSize)+j] << " ";
 		}
-		cout << "Ans:" << data[i*(inputSize+outputSize) + inputSize] <<  "  Guess:" << out[numl-1][0] << endl;
+		cout << "Ans:" << data[i*(inputSize+outputSize) + inputSize] <<
+		"  Guess:" << out[rowptr_od[numl - 1]] << endl;
 	}
 
 	int prediction, actual;
-	double guess;
+	float guess;
 	int correct = 0, incorrect = 0;
 
 	for (int i = 0; i < dataPoints; ++i)
 	{
 		ffwd(&data[i*(inputSize+outputSize)],
-				out,weight,&numl,lsize);
+				out,weight,numl,lsize);
 		actual = (int) (data[i*(inputSize+outputSize) + inputSize]);
-		guess = out[numl-1][0];
+		guess = out[rowptr_od[numl-1]];
 		prediction = (int)(guess + 0.5);
 		if (prediction == actual)
 		{
@@ -328,54 +301,32 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	double accuracy = ((double)correct)/((double)(correct+incorrect));
+	float accuracy = ((float)correct)/((float)(correct+incorrect));
 
 	cout << "Correct = " << correct << endl;
 	cout << "Incorrect = " << incorrect << endl;
 	cout << "Accuracy = " << accuracy*100 << "%" << endl;
 
 
-	//	free out
-	for(i=0;i<numl;i++)
-		delete[] out[i];
+	// free out
 	delete[] out;
 
-	//	free delta
-	for(i=1;i<numl;i++)
-		delete[] delta[i];
+	// free delta
 	delete[] delta;
 
-	//	free weight
-	for(i=1;i<numl;i++)
-		for(int j=0;j<lsize[i];j++)
-			delete[] weight[i][j];
-	for(i=1;i<numl;i++)
-		delete[] weight[i];
+	// free weight
 	delete[] weight;
 
-	//	free prevDwt
-	for(i=1;i<numl;i++)
-		for(int j=0;j<lsize[i];j++)
-			delete[] prevDwt[i][j];
-	for(i=1;i<numl;i++)
-		delete[] prevDwt[i];
+	// free prevDwt
 	delete[] prevDwt;
 
-	//	free layer info
+	// free layer info
 	delete[] lsize;
 
 	// Free memory ------------------------------------------------------------
 
 	if(mode != CPU_NORMAL) {
-		cudaFree(data_d);
-		cudaFree(out_d);
-		cudaFree(delta_d);
-		cudaFree(weight_d);
-		cudaFree(lsize_d);
-		cudaFree(prevDwt_d);
-		cudaFree(alpha_d);
-		cudaFree(beta_d);
-		cudaFree(numl_d);
+		// cudaFree(varname);
 	}
 
 	return 0;
