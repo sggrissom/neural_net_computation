@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 	int numw = 0;
 	int rowptr_w[numl+1];
 	for(int i=0; i<numl-1; i++) {
-		rowptr_w[i] = numw;
+		rowptr_w[i+1] = numw;
 		numw += lsize[i]*lsize[i+1];
 	}
 	weight = new float[numw];
@@ -140,7 +140,8 @@ int main(int argc, char* argv[])
 		cuda_ret = cudaMalloc((void**)&prevDwt_d, numw*sizeof(float));
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&rowptr_w_d, numw*sizeof(float));
+		cuda_ret = cudaMalloc((void**)&rowptr_w_d,
+				(numl+1)*sizeof(float));
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
 		cuda_ret = cudaMalloc((void**)&lsize_d, numl*sizeof(int));
