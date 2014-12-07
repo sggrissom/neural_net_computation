@@ -253,9 +253,9 @@ int main(int argc, char* argv[])
 		printf("Copying data from device to host..."); fflush(stdout);
 		startTime(&timer);
 
-/*		cuda_ret = cudaMemcpy(out, out_d, numl * sizeof(float),
+		cuda_ret = cudaMemcpy(out, out_d, numn * sizeof(float),
 				cudaMemcpyDeviceToHost);
-		if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to host");*/
+		if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to host");
 
 		cudaDeviceSynchronize();
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
