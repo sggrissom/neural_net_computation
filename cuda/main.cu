@@ -131,8 +131,8 @@ int main(int argc, char* argv[])
 		cuda_ret = cudaMalloc((void**)&delta_d, numn*sizeof(double));
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&rowptr_od,
-				(numl+1)*sizeof(double));
+		cuda_ret = cudaMalloc((void**)&rowptr_od_d,
+				(numl+1)*sizeof(int));
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
 		cuda_ret = cudaMalloc((void**)&weight_d, numw*sizeof(double));
@@ -141,7 +141,7 @@ int main(int argc, char* argv[])
 		cuda_ret = cudaMalloc((void**)&prevDwt_d, numw*sizeof(double));
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
-		cuda_ret = cudaMalloc((void**)&rowptr_w_d, numw*sizeof(double));
+		cuda_ret = cudaMalloc((void**)&rowptr_w_d, numw*sizeof(int));
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
 		cuda_ret = cudaMalloc((void**)&lsize_d, numl*sizeof(int));
@@ -171,6 +171,10 @@ int main(int argc, char* argv[])
 				cudaMemcpyHostToDevice);
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(rowptr_od_d, rowptr_od,
+			(numl+1)*sizeof(int),cudaMemcpyHostToDevice);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
 		cuda_ret = cudaMemcpy(weight_d, weight, numw*sizeof(double),
 				cudaMemcpyHostToDevice);
 		if(cuda_ret != cudaSuccess)
@@ -179,7 +183,7 @@ int main(int argc, char* argv[])
 				cudaMemcpyHostToDevice);
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to set device memory");
-		cuda_ret = cudaMemcpy(rowptr_w_d, rowptr_w, numw*sizeof(double),
+		cuda_ret = cudaMemcpy(rowptr_w_d, rowptr_w, numw*sizeof(int),
 				cudaMemcpyHostToDevice);
 		if(cuda_ret != cudaSuccess)
 			FATAL("Unable to set device memory");
