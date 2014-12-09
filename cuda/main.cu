@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 	int i;
 
 	double beta = 0.3, alpha = 0.1;
-	long num_iter = 5000000;
+	long num_iter = 50000000;
 
 	double *out;
 	double *delta;
@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
 	double *prevDwt;
 
 	int numn = 0;
-	int rowptr_od[numl+1];
+	int rowptr_od[numl];
 	for(int i=0; i<numl; i++) {
 		rowptr_od[i] = numn;
 		numn += lsize[i];

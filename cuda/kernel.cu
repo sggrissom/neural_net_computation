@@ -38,9 +38,9 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 		for(int j=0;j<lsize[idx];j++){		
 			sum=0.0;
 			for(int k=0;k<lsize[idx-1];k++){		
-				sum+= out[rowptr_od[idx-1]+k]*weight[rowptr_w[idx] + lsize[idx]* j + k];	
+				sum+= out[rowptr_od[idx-1]+k]*weight[rowptr_w[idx] + (lsize[idx-1]+1)* j + k];	
 			}
-			sum+=weight[rowptr_w[idx] + lsize[idx]*j+lsize[idx-1]];		
+			sum+=weight[rowptr_w[idx] + (lsize[idx-1]+1)*j+lsize[idx-1]];		
 			out[rowptr_od[idx]+j]=(double)(1/(1+exp(-sum)));
 		}
 	}
@@ -59,8 +59,8 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 	if (idx < numl-1 && idx > 0) {
 		for(int j=0;j<lsize[idx];j++){
 			sum=0.0;
-			for(int k=0;k<lsize[idx+1];k++){
-				sum+=delta[rowptr_od[idx+1]+k]*weight[rowptr_w[idx+1]+lsize[idx+1]*k+j];
+			for(int k=0;k<(lsize[idx]+1);k++){
+				sum+=delta[rowptr_od[idx+1]+k]*weight[rowptr_w[idx+1]+(lsize[idx]+1)*k+j];
 			}
 			delta[rowptr_od[idx]+j]=out[rowptr_od[idx]+j]*(1-out[rowptr_od[idx]+j])*sum;
 		}
@@ -71,9 +71,9 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 	if (idx < numl && idx > 0) {
 		for(int j=0;j<lsize[idx];j++){
 			for(int k=0;k<lsize[idx-1];k++){
-				weight[rowptr_w[idx] + lsize[idx]*j+k]+=(alpha)*prevDwt[rowptr_w[idx] + lsize[idx]*j+k];
+				weight[rowptr_w[idx] + (lsize[idx-1]+1)*j+k]+=(alpha)*prevDwt[rowptr_w[idx] + (lsize[idx-1]+1)*j+k];
 			}
-			weight[rowptr_w[idx] + lsize[idx]*j+lsize[idx-1]]+=(alpha)*prevDwt[rowptr_w[idx] + lsize[idx]*j+lsize[idx-1]];
+			weight[rowptr_w[idx] + (lsize[idx-1]+1)*j+lsize[idx-1]]+=(alpha)*prevDwt[rowptr_w[idx] + (lsize[idx-1]+1)*j+lsize[idx-1]];
 		}
 	}
 	__syncthreads();
@@ -82,11 +82,11 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 	if (idx < numl && idx > 0) {
 		for(int j=0;j<lsize[idx];j++){
 			for(int k=0;k<lsize[idx-1];k++){
-				prevDwt[rowptr_w[idx] + lsize[idx]*j+k]=(beta)*delta[rowptr_od[idx]+j]*out[rowptr_od[idx-1]+k];
-				weight[rowptr_w[idx] + lsize[idx]*j+k]+=prevDwt[rowptr_w[idx] + lsize[idx]*j+k];
+				prevDwt[rowptr_w[idx] + (lsize[idx-1]+1)*j+k]=(beta)*delta[rowptr_od[idx]+j]*out[rowptr_od[idx-1]+k];
+				weight[rowptr_w[idx] + (lsize[idx-1]+1)*j+k]+=prevDwt[rowptr_w[idx] + (lsize[idx-1]+1)*j+k];
 			}
-			prevDwt[rowptr_w[idx] + lsize[idx]*j+lsize[idx-1]]=(beta)*delta[rowptr_od[idx]+j];
-			weight[rowptr_w[idx] + lsize[idx]*j+lsize[idx-1]]+=prevDwt[rowptr_w[idx] + lsize[idx]*j+lsize[idx-1]];
+			prevDwt[rowptr_w[idx] + (lsize[idx-1]+1)*j+lsize[idx-1]]=(beta)*delta[rowptr_od[idx]+j];
+			weight[rowptr_w[idx] + (lsize[idx-1]+1)*j+lsize[idx-1]]+=prevDwt[rowptr_w[idx] + (lsize[idx-1]+1)*j+lsize[idx-1]];
 		}
 	}
 }
@@ -178,9 +178,9 @@ void cpu_bpgt(double *in,double *tgt,
 		for(int j=0;j<lsize[i];j++){		
 			sum=0.0;
 			for(int k=0;k<lsize[i-1];k++){		
-				sum+= out[rowptr_od[i-1]+k]*weight[rowptr_w[i] + lsize[i]*j+k];	
+				sum+= out[rowptr_od[i-1]+k]*weight[rowptr_w[i] + (lsize[i-1]+1)*j+k];	
 			}
-			sum+=weight[rowptr_w[i] + lsize[i]*j+lsize[i-1]];		
+			sum+=weight[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]];		
 			out[rowptr_od[i]+j]=(double)(1/(1+exp(-sum)));
 		}
 	}
@@ -195,7 +195,7 @@ void cpu_bpgt(double *in,double *tgt,
 		for(int j=0;j<lsize[i];j++){
 			sum=0.0;
 			for(int k=0;k<lsize[i+1];k++){
-				sum+=delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+lsize[i+1]*k+j];
+				sum+=delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+(lsize[i]+1)*k+j];
 			}
 			delta[rowptr_od[i]+j]=out[rowptr_od[i]+j]*(1-out[rowptr_od[i]+j])*sum;
 		}
@@ -204,20 +204,20 @@ void cpu_bpgt(double *in,double *tgt,
 	for(i=1;i<numl;i++){
 		for(int j=0;j<lsize[i];j++){
 			for(int k=0;k<lsize[i-1];k++){
-				weight[rowptr_w[i] + lsize[i]*j+k]+=(alpha)*prevDwt[rowptr_w[i] + lsize[i]*j+k];
+				weight[rowptr_w[i] + (lsize[i-1]+1)*j+k]+=(alpha)*prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+k];
 			}
-			weight[rowptr_w[i] + lsize[i]*j+lsize[i-1]]+=(alpha)*prevDwt[rowptr_w[i] + lsize[i]*j+lsize[i-1]];
+			weight[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]]+=(alpha)*prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]];
 		}
 	}
 	
 	for(i=1;i<numl;i++){
 		for(int j=0;j<lsize[i];j++){
 			for(int k=0;k<lsize[i-1];k++){
-				prevDwt[rowptr_w[i] + lsize[i]*j+k]=(beta)*delta[rowptr_od[i]+j]*out[rowptr_od[i-1]+k];
-				weight[rowptr_w[i] + lsize[i]*j+k]+=prevDwt[rowptr_w[i] + lsize[i]*j+k];
+				prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+k]=(beta)*delta[rowptr_od[i]+j]*out[rowptr_od[i-1]+k];
+				weight[rowptr_w[i] + (lsize[i-1]+1)*j+k]+=prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+k];
 			}
-			prevDwt[rowptr_w[i] + lsize[i]*j+lsize[i-1]]=(beta)*delta[rowptr_od[i]+j];
-			weight[rowptr_w[i] + lsize[i]*j+lsize[i-1]]+=prevDwt[rowptr_w[i] + lsize[i]*j+lsize[i-1]];
+			prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]]=(beta)*delta[rowptr_od[i]+j];
+			weight[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]]+=prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]];
 		}
 	}
 }
@@ -247,9 +247,9 @@ void ffwd(double *in,
 		for(int j=0;j<lsize[i];j++){		
 			sum=0.0;
 			for(int k=0;k<lsize[i-1];k++){		
-				sum+= out[rowptr_od[i-1]+k]*weight[rowptr_w[i] + lsize[i]*j+k];	
+				sum+= out[rowptr_od[i-1]+k]*weight[rowptr_w[i] + (lsize[i-1]+1)*j+k];	
 			}
-			sum+=weight[rowptr_w[i] + lsize[i]*j+lsize[i-1]];		
+			sum+=weight[rowptr_w[i] + (lsize[i-1]+1)*j+lsize[i-1]];		
 			out[rowptr_od[i]+j]=(double)(1/(1+exp(-sum)));
 		}
 	}
