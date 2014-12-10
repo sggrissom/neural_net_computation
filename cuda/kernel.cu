@@ -15,84 +15,87 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 		double beta,
 		double alpha,
 		double *prevDwt,
-		int *rowptr_w) {
+		int *rowptr_w,
+		int num_iter) {
 
-	int idx = threadIdx.x + blockDim.x * blockIdx.x;
-	int sz =0;
-	double sum;
+	for (int iter=0; iter<num_iter; iter++) {
+		int idx = threadIdx.x + blockDim.x * blockIdx.x;
+		int sz =0;
+		double sum;
 
-	// update output values for each neuron
+		// update output values for each neuron
 
-	// assign content to input layer
-	if (idx < lsize[0])
-	{
-		out[idx]=in[idx];  // output_from_neuron(i,j) Jth neuron in Ith Layer
-	}
-
-	__syncthreads();
-
-	// assign output(activation) value
-	// to each neuron usng sigmoid func
-	for(int i=1;i<numl;i++){
-		sum=0.0;
-		if (idx < lsize[i]){
-			for(int k=0;k<lsize[i-1];k++){ // For input from each neuron in preceeding layer
-				// Apply weight to inputs and add to sum
-				sum+= out[rowptr_od[i-1]+k]* weight[sz+(idx*(lsize[i-1]+1))+k];
-			}
-			sum+= weight[sz+lsize[i-1]*idx + lsize[i-1]];
-			out[rowptr_od[i]+idx]=(double)(1/(1+exp(-sum)));
+		// assign content to input layer
+		if (idx < lsize[0])
+		{
+			out[idx]=in[idx];  // output_from_neuron(i,j) Jth neuron in Ith Layer
 		}
-		sz+= (lsize[i-1]+1)*lsize[i];
+
 		__syncthreads();
-	}
 
-	__syncthreads();
-
-	// find delta for output layer
-	if (idx == 0){
-		for(int i=0;i<lsize[numl-1];i++){
-			delta[rowptr_od[numl-1]+i]=out[rowptr_od[numl-1]+i]*(1-out[rowptr_od[numl-1]+i])*(tgt[i]-out[rowptr_od[numl-1]+i]);
-		}
-	}
-
-	__syncthreads();
-
-	//	find delta for hidden layers
-	for(int i=numl-2;i>0;i--){
-		sum=0.0;
-		if (idx<lsize[i]){
-			for(int k=0;k<lsize[i+1];k++){
-				sum+=delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+k*(lsize[i]+1)+idx];   // look into // rowptr_WD starts from 1
+		// assign output(activation) value
+		// to each neuron usng sigmoid func
+		for(int i=1;i<numl;i++){
+			sum=0.0;
+			if (idx < lsize[i]){
+				for(int k=0;k<lsize[i-1];k++){ // For input from each neuron in preceeding layer
+					// Apply weight to inputs and add to sum
+					sum+= out[rowptr_od[i-1]+k]* weight[sz+(idx*(lsize[i-1]+1))+k];
+				}
+				sum+= weight[sz+lsize[i-1]*idx + lsize[i-1]];
+				out[rowptr_od[i]+idx]=(double)(1/(1+exp(-sum)));
 			}
-			delta[rowptr_od[i]+idx]=out[rowptr_od[i]+idx]*(1-out[rowptr_od[i]+idx])*sum;
+			sz+= (lsize[i-1]+1)*lsize[i];
+			__syncthreads();
+		}
+
+		__syncthreads();
+
+		// find delta for output layer
+		if (idx == 0){
+			for(int i=0;i<lsize[numl-1];i++){
+				delta[rowptr_od[numl-1]+i]=out[rowptr_od[numl-1]+i]*(1-out[rowptr_od[numl-1]+i])*(tgt[i]-out[rowptr_od[numl-1]+i]);
+			}
+		}
+
+		__syncthreads();
+
+		//	find delta for hidden layers
+		for(int i=numl-2;i>0;i--){
+			sum=0.0;
+			if (idx<lsize[i]){
+				for(int k=0;k<lsize[i+1];k++){
+					sum+=delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+k*(lsize[i]+1)+idx];   // look into // rowptr_WD starts from 1
+				}
+				delta[rowptr_od[i]+idx]=out[rowptr_od[i]+idx]*(1-out[rowptr_od[i]+idx])*sum;
+			}
+			__syncthreads();
+		}
+
+		__syncthreads();
+
+		//	apply momentum ( does nothing if alpha=0 )
+		for(int i=1;i<numl;i++){
+				if(idx<lsize[i]){
+				for(int k=0;k<lsize[i-1];k++){
+					weight[rowptr_w[i]+idx*(lsize[i-1]+1)+k]+=alpha*prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k];
+				}
+				weight[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]]+=alpha*prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]];
+			}
+			__syncthreads();
 		}
 		__syncthreads();
-	}
 
-	__syncthreads();
-
-	//	apply momentum ( does nothing if alpha=0 )
-	for(int i=1;i<numl;i++){
+		//	adjust weights usng steepest descent
+		for(int i=1;i<numl;i++){
 			if(idx<lsize[i]){
-			for(int k=0;k<lsize[i-1];k++){
-				weight[rowptr_w[i]+idx*(lsize[i-1]+1)+k]+=alpha*prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k];
+				for(int k=0;k<lsize[i-1];k++){
+					prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k]=beta*delta[rowptr_od[i]+idx]*out[rowptr_od[i-1]+k];
+					weight[rowptr_w[i]+idx*(lsize[i-1]+1)+k]+=prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k];
+				}
+				prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]]=beta*delta[rowptr_od[i]+idx];
+				weight[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]]+=prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]];
 			}
-			weight[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]]+=alpha*prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]];
-		}
-		__syncthreads();
-	}
-	__syncthreads();
-
-	//	adjust weights usng steepest descent
-	for(int i=1;i<numl;i++){
-		if(idx<lsize[i]){
-			for(int k=0;k<lsize[i-1];k++){
-				prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k]=beta*delta[rowptr_od[i]+idx]*out[rowptr_od[i-1]+k];
-				weight[rowptr_w[i]+idx*(lsize[i-1]+1)+k]+=prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k];
-			}
-			prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]]=beta*delta[rowptr_od[i]+idx];
-			weight[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]]+=prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+lsize[i-1]];
 		}
 	}
 }
@@ -107,7 +110,8 @@ __global__ void gpu_improved_kernel(double *in,double *tgt,
 		double beta,
 		double alpha,
 		double *prevDwt,
-		int *rowptr_w) {
+		int *rowptr_w,
+		int num_iter) {
 
 	int idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx < lsize[0])
@@ -129,12 +133,14 @@ void gpu_naive_bpgt(double *in,double *tgt,
 		double beta,
 		double alpha,
 		double *prevDwt,
-		int *rowptr_w) {
+		int *rowptr_w,
+		int num_iter) {
 
 	const unsigned int numThreadsPerBlock = 512;
 	const unsigned int numBlocks = (128 - 1)/numThreadsPerBlock + 1;
 	gpu_naive_kernel <<< numBlocks , numThreadsPerBlock >>>
-		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,prevDwt, rowptr_w);
+		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
+		prevDwt,rowptr_w,num_iter);
 }
 
 void gpu_improved_bpgt(double *in,double *tgt,
@@ -147,12 +153,14 @@ void gpu_improved_bpgt(double *in,double *tgt,
 		double beta,
 		double alpha,
 		double *prevDwt,
-		int *rowptr_w) {
+		int *rowptr_w,
+		int num_iter) {
 
 	const unsigned int numThreadsPerBlock = 512;
 	const unsigned int numBlocks = (128 - 1)/numThreadsPerBlock + 1;
 	gpu_improved_kernel <<< numBlocks , numThreadsPerBlock >>>
-		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,prevDwt, rowptr_w);
+		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
+		prevDwt,rowptr_w,num_iter);
 
 }
 

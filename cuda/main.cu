@@ -219,13 +219,10 @@ int main(int argc, char* argv[])
 		startTime(&timer);
 
 		printf("training the network...");
-		for (i=0; i<num_iter ; i++)
-		{
-			gpu_naive_bpgt(&data_d[(i%dataPoints)*(inputSize+outputSize)],
-					&data_d[(i%dataPoints)*(inputSize+outputSize) + inputSize],
-					out_d,delta_d,rowptr_od_d,weight_d,numl,lsize_d,beta,
-					alpha,prevDwt_d,rowptr_w_d);
-		}
+		gpu_naive_bpgt(&data_d[(i%dataPoints)*(inputSize+outputSize)],
+				&data_d[(i%dataPoints)*(inputSize+outputSize) + inputSize],
+				out_d,delta_d,rowptr_od_d,weight_d,numl,lsize_d,beta,
+				alpha,prevDwt_d,rowptr_w_d,num_iter);
 
 		cuda_ret = cudaDeviceSynchronize();
 		if(cuda_ret != cudaSuccess) FATAL("Unable to launch/execute kernel");
@@ -235,13 +232,10 @@ int main(int argc, char* argv[])
 		startTime(&timer);
 
 		printf("training the network...");
-		for (i=0; i<num_iter ; i++)
-		{
-			gpu_improved_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],
-					&data[(i%dataPoints)*(inputSize+outputSize) + inputSize],
-					out_d,delta_d,rowptr_od_d,weight_d,numl,lsize_d,beta,
-					alpha,prevDwt_d,rowptr_w_d);
-		}
+		gpu_improved_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],
+				&data[(i%dataPoints)*(inputSize+outputSize) + inputSize],
+				out_d,delta_d,rowptr_od_d,weight_d,numl,lsize_d,beta,
+				alpha,prevDwt_d,rowptr_w_d,num_iter);
 
 		cuda_ret = cudaDeviceSynchronize();
 		if(cuda_ret != cudaSuccess) FATAL("Unable to launch/execute kernel");
