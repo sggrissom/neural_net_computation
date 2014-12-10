@@ -331,7 +331,14 @@ int main(int argc, char* argv[])
 	// Free memory ------------------------------------------------------------
 
 	if(mode != CPU_NORMAL) {
-		// cudaFree(varname);
+		cudaFree(data_d);
+		cudaFree(out_d);
+		cudaFree(delta_d);
+		cudaFree(rowptr_od_d);
+		cudaFree(weight_d);
+		cudaFree(prevDwt_d);
+		cudaFree(rowptr_w_d);
+		cudaFree(lsize_d);
 	}
 
 	return 0;
