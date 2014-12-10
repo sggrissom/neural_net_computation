@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 	int i;
 
 	double beta = 0.3, alpha = 0.1;
-	long num_iter = 50000000;
+	long num_iter = 2000000;
 
 	double *out;
 	double *delta;
@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
 		startTime(&timer);
 
 		cuda_ret = cudaMalloc((void**)&data_d,
-				(inputSize+outputSize)*sizeof(double));
+				dataPoints*(inputSize+outputSize)*sizeof(double));
 		if (cuda_ret != cudaSuccess)
 			FATAL("Unable to allocate device memory");
 		cuda_ret = cudaMalloc((void**)&out_d, numn*sizeof(double));
@@ -166,7 +166,7 @@ int main(int argc, char* argv[])
 		startTime(&timer);
 
 		cuda_ret = cudaMemcpy(data_d, data,
-				(inputSize+outputSize)*sizeof(double),
+				dataPoints*(inputSize+outputSize)*sizeof(double),
 				cudaMemcpyHostToDevice);
 		if (cuda_ret != cudaSuccess)
 			FATAL("Unable to set device memory");
@@ -229,13 +229,14 @@ int main(int argc, char* argv[])
 		startTime(&timer);
 
 		printf("training the network...");
-		gpu_naive_bpgt(&data_d[(i%dataPoints)*(inputSize+outputSize)],
-				&data_d[(i%dataPoints)*(inputSize+outputSize)
-				+ inputSize],out_d,delta_d,rowptr_od_d,
-				weight_d,numl,lsize_d,beta,alpha,prevDwt_d,
-				rowptr_w_d,num_iter);
 
-		cuda_ret = cudaDeviceSynchronize();
+	gpu_naive_bpgt(data_d,out_d,delta_d,rowptr_od_d,
+				weight_d,numl,lsize_d,beta,alpha,prevDwt_d,
+				rowptr_w_d,num_iter, (inputSize + outputSize), dataPoints);
+
+
+
+  		cuda_ret = cudaDeviceSynchronize();
 		if (cuda_ret != cudaSuccess)
 			FATAL("Unable to launch/execute kernel");
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
@@ -245,11 +246,11 @@ int main(int argc, char* argv[])
 		startTime(&timer);
 
 		printf("training the network...");
-		gpu_improved_bpgt(&data[(i%dataPoints)*(inputSize+outputSize)],
-				&data[(i%dataPoints)*(inputSize+outputSize)
-				+ inputSize],out_d,delta_d,rowptr_od_d,
+
+		gpu_naive_bpgt(data_d,out_d,delta_d,rowptr_od_d,
 				weight_d,numl,lsize_d,beta,alpha,prevDwt_d,
-				rowptr_w_d,num_iter);
+				rowptr_w_d,num_iter, (inputSize + outputSize), dataPoints);
+
 
 		cuda_ret = cudaDeviceSynchronize();
 		if (cuda_ret != cudaSuccess)
@@ -283,8 +284,7 @@ int main(int argc, char* argv[])
 
 	// Verify correctness -------------------------------------------------
 
-	if ( i == num_iter )
-		cout << endl << i << " iterations completed..." << endl;
+		cout << endl << num_iter << " iterations completed..." << endl;
 
 	cout<< "Now using the trained network to make predctions on test data...." << endl << endl;
 	for (i=0; i<testPoints; i++)

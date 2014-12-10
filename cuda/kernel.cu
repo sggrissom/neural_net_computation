@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 
-__global__ void gpu_datatest_kernel(double *in,double *tgt,
+__global__ void gpu_datatest_kernel(double *data,
 		double *out,
 		double *delta,
 		int *rowptr_od,
@@ -16,52 +16,24 @@ __global__ void gpu_datatest_kernel(double *in,double *tgt,
 		double alpha,
 		double *prevDwt,
 		int *rowptr_w,
-		int num_iter) {
-	const int numn = 7;
-	const int numw = 9;
+		int num_iter,
+    int inSize,
+    int dataSize) {
 
-	printf("\nin:\n");
-	for(int i=0; i<32; i++)
-		printf("%d ", in[i]);
+  double *in;
+  for (int iter=0; iter<num_iter; iter++)
+  {
+    in = data + (iter%dataSize)*inSize; 
 
-	printf("\n\nout:\n");
-	for (int i=0; i<numn; i++)
-		printf("%d ", out[i]);
-
-	printf("\n\ndelta:\n");
-	for (int i=0; i<numn; i++)
-		printf("%d ", delta[i]);
-
-	printf("\n\nrowptr_od:\n");
-	for (int i=0; i<numl+1; i++)
-		printf("%d ", rowptr_od[i]);
-
-	printf("\n\nweight:\n");
-	for (int i=0; i<numw; i++)
-		printf("%d ", weight[i]);
-
-	printf("\n\nnuml:\n%d", numl);
-
-	printf("\n\nlsize:\n");
-	for (int i=0; i<numw; i++)
-		printf("%d ", prevDwt[i]);
-
-	printf("\n\nbeta:\n%d", beta);
-
-	printf("\n\nalpha:\n%d", alpha);
-
-	printf("\n\nprevDwt:\n");
-	for (int i=0; i<numw; i++)
-		printf("%d ", prevDwt[i]);
-
-	printf("\n\nrowptr_w:\n");
-	for (int i=0; i<numl; i++)
-		printf("%d ", rowptr_od[i]);
-
-	printf("\n\nnum_iter:\n%d", num_iter);
+    for (int i = 0; i < inSize; i++) {
+        printf("val: %f", in[i]);
+    }
+    printf("\n");
+  }
 }
 
-__global__ void gpu_naive_kernel(double *in,double *tgt,
+
+__global__ void gpu_naive_kernel(double *data,
 		double *out,
 		double *delta,
 		int *rowptr_od,
@@ -72,14 +44,19 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 		double alpha,
 		double *prevDwt,
 		int *rowptr_w,
-		int num_iter) {
+		int num_iter,
+    int inSize,
+    int dataSize) {
 
-	for (int iter=0; iter<num_iter; iter++)
+  double *in = data;
+  int i, k, iter;
+
+	for (iter=0; iter<num_iter; iter++)
 	{
-		int idx = threadIdx.x + blockDim.x * blockIdx.x;
-		int sz =0;
-		double sum;
+    in = data + (iter%dataSize)*inSize; 
 
+		int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    float sum;
 		// update output values for each neuron
 
 		// assign content to input layer
@@ -89,27 +66,22 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 			out[idx]=in[idx];
 		}
 
-		__syncthreads();
+      __syncthreads();
 
 		// assign output(activation) value
 		// to each neuron usng sigmoid func
-		for (int i=1;i<numl;i++)
+		for (i=1;i<numl;i++)
 		{
-			sum=0.0;
 			if (idx < lsize[i])
 			{
-				for (int k=0;k<lsize[i-1];k++)
+        sum=0.0;
+				for (k=0;k<lsize[i-1];k++)
 				{
-					/* For input from each neuron in
-					 * preceeding layer, apply weight to
-					 * inputs and add to sum */
-					sum+= out[rowptr_od[i-1]+k]* weight[sz+(idx*(lsize[i-1]+1))+k];
+					sum += out[rowptr_od[i-1]+k]* weight[rowptr_w[i]+(idx*(lsize[i-1]+1))+k];
 				}
-				sum+= weight[sz+lsize[i-1]*idx + lsize[i-1]];
+				sum += weight[rowptr_w[i]+(lsize[i-1]+1)*idx + lsize[i-1]];
 				out[rowptr_od[i]+idx]=(double)(1/(1+exp(-sum)));
 			}
-			sz+= (lsize[i-1]+1)*lsize[i];
-			__syncthreads();
 		}
 
 		__syncthreads();
@@ -117,37 +89,38 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 		// find delta for output layer
 		if (idx == 0)
 		{
-			for (int i=0;i<lsize[numl-1];i++)
+			for (i=0;i<lsize[numl-1];i++)
 			{
-				delta[rowptr_od[numl-1]+i]=out[rowptr_od[numl-1]+i]*(1-out[rowptr_od[numl-1]+i])*(tgt[i]-out[rowptr_od[numl-1]+i]);
+				delta[rowptr_od[numl-1]+i]=out[rowptr_od[numl-1]+i]*
+          (1-out[rowptr_od[numl-1]+i])*(in[lsize[0]]-out[rowptr_od[numl-1]+i]);
 			}
 		}
 
-		__syncthreads();
+      __syncthreads();
 
 		//	find delta for hidden layers
-		for (int i=numl-2;i>0;i--)
+		for (i=numl-2;i>0;i--)
 		{
-			sum=0.0;
 			if (idx<lsize[i])
 			{
-				for (int k=0;k<lsize[i+1];k++)
+        sum=0.0;
+				for (k=0;k<lsize[i+1];k++)
 				{
-					sum+=delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+k*(lsize[i]+1)+idx];   // look into // rowptr_WD starts from 1
+					sum += delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+k*(lsize[i]+1)+idx];
 				}
 				delta[rowptr_od[i]+idx]=out[rowptr_od[i]+idx]*(1-out[rowptr_od[i]+idx])*sum;
+        __syncthreads();
 			}
-			__syncthreads();
 		}
 
 		__syncthreads();
 
 		//	apply momentum ( does nothing if alpha=0 )
-		for (int i=1;i<numl;i++)
+		for (i=1;i<numl;i++)
 		{
 			if (idx<lsize[i])
 			{
-				for (int k=0;k<lsize[i-1];k++)
+				for (k=0;k<lsize[i-1];k++)
 				{
 					weight[rowptr_w[i]+idx*(lsize[i-1]+1)+k]+=alpha*prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k];
 				}
@@ -158,11 +131,11 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 		__syncthreads();
 
 		//	adjust weights usng steepest descent
-		for (int i=1;i<numl;i++)
+		for (i=1;i<numl;i++)
 		{
 			if (idx<lsize[i])
 			{
-				for (int k=0;k<lsize[i-1];k++)
+				for (k=0;k<lsize[i-1];k++)
 				{
 					prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k]=beta*delta[rowptr_od[i]+idx]*out[rowptr_od[i-1]+k];
 					weight[rowptr_w[i]+idx*(lsize[i-1]+1)+k]+=prevDwt[rowptr_w[i]+idx*(lsize[i-1]+1)+k];
@@ -174,30 +147,11 @@ __global__ void gpu_naive_kernel(double *in,double *tgt,
 	}
 }
 
-__global__ void gpu_improved_kernel(double *in,double *tgt,
-		double *out,
-		double *delta,
-		int *rowptr_od,
-		double *weight,
-		int numl,
-		int *lsize,
-		double beta,
-		double alpha,
-		double *prevDwt,
-		int *rowptr_w,
-		int num_iter) {
-
-	int idx = threadIdx.x + blockDim.x * blockIdx.x;
-	if (idx < lsize[0])
-	{
-	}
-}
-
 /*****************************************************************************
   Main computation functions
  *****************************************************************************/
 
-void gpu_datatest(double *in,double *tgt,
+void gpu_datatest(double *in,
 		double *out,
 		double *delta,
 		int *rowptr_od,
@@ -208,16 +162,19 @@ void gpu_datatest(double *in,double *tgt,
 		double alpha,
 		double *prevDwt,
 		int *rowptr_w,
-		int num_iter) {
+		int num_iter,
+    int inSize,
+    int dataSize) {
 
+        printf("c'mon");
 	const unsigned int numThreadsPerBlock = 1;
 	const unsigned int numBlocks = 1;
 	gpu_datatest_kernel <<< numBlocks , numThreadsPerBlock >>>
-		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
-		prevDwt,rowptr_w,num_iter);
+		(in,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
+		prevDwt,rowptr_w,num_iter, inSize, dataSize);
 }
 
-void gpu_naive_bpgt(double *in,double *tgt,
+void gpu_naive_bpgt(double *in,
 		double *out,
 		double *delta,
 		int *rowptr_od,
@@ -228,33 +185,15 @@ void gpu_naive_bpgt(double *in,double *tgt,
 		double alpha,
 		double *prevDwt,
 		int *rowptr_w,
-		int num_iter) {
+		int num_iter,
+    int inSize,
+    int dataSize) {
 
 	const unsigned int numThreadsPerBlock = 512;
 	const unsigned int numBlocks = (128 - 1)/numThreadsPerBlock + 1;
 	gpu_naive_kernel <<< numBlocks , numThreadsPerBlock >>>
-		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
-		prevDwt,rowptr_w,num_iter);
-}
-
-void gpu_improved_bpgt(double *in,double *tgt,
-		double *out,
-		double *delta,
-		int *rowptr_od,
-		double *weight,
-		int numl,
-		int *lsize,
-		double beta,
-		double alpha,
-		double *prevDwt,
-		int *rowptr_w,
-		int num_iter) {
-
-	const unsigned int numThreadsPerBlock = 512;
-	const unsigned int numBlocks = (128 - 1)/numThreadsPerBlock + 1;
-	gpu_improved_kernel <<< numBlocks , numThreadsPerBlock >>>
-		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
-		prevDwt,rowptr_w,num_iter);
+		(in,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
+		prevDwt,rowptr_w,num_iter,inSize, dataSize);
 }
 
 void cpu_bpgt(double *in,double *tgt,
@@ -270,7 +209,7 @@ void cpu_bpgt(double *in,double *tgt,
 		int *rowptr_w)
 {
 	double sum;
-	int i;
+	int i,j,k;
 
 	for (i=0;i<lsize[0];i++)
 	{
@@ -279,10 +218,10 @@ void cpu_bpgt(double *in,double *tgt,
 
 	for (i=1;i<numl;i++)
 	{
-		for (int j=0;j<lsize[i];j++)
+		for (j=0;j<lsize[i];j++)
 		{
 			sum=0.0;
-			for (int k=0;k<lsize[i-1];k++)
+			for (k=0;k<lsize[i-1];k++)
 			{
 				sum+= out[rowptr_od[i-1]+k]*weight[rowptr_w[i] + (lsize[i-1]+1)*j+k];
 			}
@@ -299,10 +238,10 @@ void cpu_bpgt(double *in,double *tgt,
 
 	for (i=numl-2;i>0;i--)
 	{
-		for (int j=0;j<lsize[i];j++)
+		for (j=0;j<lsize[i];j++)
 		{
 			sum=0.0;
-			for (int k=0;k<lsize[i+1];k++)
+			for (k=0;k<lsize[i+1];k++)
 			{
 				sum+=delta[rowptr_od[i+1]+k]*weight[rowptr_w[i+1]+(lsize[i]+1)*k+j];
 			}
@@ -312,9 +251,9 @@ void cpu_bpgt(double *in,double *tgt,
 
 	for (i=1;i<numl;i++)
 	{
-		for (int j=0;j<lsize[i];j++)
+		for (j=0;j<lsize[i];j++)
 		{
-			for (int k=0;k<lsize[i-1];k++)
+			for (k=0;k<lsize[i-1];k++)
 			{
 				weight[rowptr_w[i] + (lsize[i-1]+1)*j+k]+=(alpha)*prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+k];
 			}
@@ -324,9 +263,9 @@ void cpu_bpgt(double *in,double *tgt,
 
 	for (i=1;i<numl;i++)
 	{
-		for (int j=0;j<lsize[i];j++)
+		for (j=0;j<lsize[i];j++)
 		{
-			for (int k=0;k<lsize[i-1];k++)
+			for (k=0;k<lsize[i-1];k++)
 			{
 				prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+k]=(beta)*delta[rowptr_od[i]+j]*out[rowptr_od[i-1]+k];
 				weight[rowptr_w[i] + (lsize[i-1]+1)*j+k]+=prevDwt[rowptr_w[i] + (lsize[i-1]+1)*j+k];
@@ -346,7 +285,7 @@ void ffwd(double *in,
 		int *rowptr_w)
 {
 	double sum;
-	int i=0;
+	int i,j,k;
 
 	for (i=0;i<lsize[0];i++)
 	{
@@ -355,10 +294,10 @@ void ffwd(double *in,
 
 	for (i=1;i<numl;i++)
 	{
-		for (int j=0;j<lsize[i];j++)
+		for (j=0;j<lsize[i];j++)
 		{
 			sum=0.0;
-			for (int k=0;k<lsize[i-1];k++)
+			for (k=0;k<lsize[i-1];k++)
 			{
 				sum+= out[rowptr_od[i-1]+k]*weight[rowptr_w[i]
 						+ (lsize[i-1]+1)*j+k];
