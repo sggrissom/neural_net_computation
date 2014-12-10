@@ -4,6 +4,63 @@
   GPU main computation kernels
  *****************************************************************************/
 
+
+__global__ void gpu_datatest_kernel(double *in,double *tgt,
+		double *out,
+		double *delta,
+		int *rowptr_od,
+		double *weight,
+		int numl,
+		int *lsize,
+		double beta,
+		double alpha,
+		double *prevDwt,
+		int *rowptr_w,
+		int num_iter) {
+	const int numn = 7;
+	const int numw = 9;
+
+	printf("\nin:\n");
+	for(int i=0; i<32; i++)
+		printf("%d ", in[i]);
+
+	printf("\n\nout:\n");
+	for (int i=0; i<numn; i++)
+		printf("%d ", out[i]);
+
+	printf("\n\ndelta:\n");
+	for (int i=0; i<numn; i++)
+		printf("%d ", delta[i]);
+
+	printf("\n\nrowptr_od:\n");
+	for (int i=0; i<numl+1; i++)
+		printf("%d ", rowptr_od[i]);
+
+	printf("\n\nweight:\n");
+	for (int i=0; i<numw; i++)
+		printf("%d ", weight[i]);
+
+	printf("\n\nnuml:\n%d", numl);
+
+	printf("\n\nlsize:\n");
+	for (int i=0; i<numw; i++)
+		printf("%d ", prevDwt[i]);
+
+	printf("\n\nbeta:\n%d", beta);
+
+	printf("\n\nalpha:\n%d", alpha);
+
+	printf("\n\nprevDwt:\n");
+	for (int i=0; i<numw; i++)
+		printf("%d ", prevDwt[i]);
+
+	printf("\n\nrowptr_w:\n");
+	for (int i=0; i<numl; i++)
+		printf("%d ", rowptr_od[i]);
+
+	printf("\n\nnum_iter:\n%d", num_iter);
+}
+
 __global__ void gpu_naive_kernel(double *in,double *tgt,
 		double *out,
 		double *delta,
@@ -139,6 +196,26 @@ __global__ void gpu_improved_kernel(double *in,double *tgt,
 /*****************************************************************************
   Main computation functions
  *****************************************************************************/
+
+void gpu_datatest(double *in,double *tgt,
+		double *out,
+		double *delta,
+		int *rowptr_od,
+		double *weight,
+		int numl,
+		int *lsize,
+		double beta,
+		double alpha,
+		double *prevDwt,
+		int *rowptr_w,
+		int num_iter) {
+
+	const unsigned int numThreadsPerBlock = 1;
+	const unsigned int numBlocks = 1;
+	gpu_datatest_kernel <<< numBlocks , numThreadsPerBlock >>>
+		(in,tgt,out,delta,rowptr_od,weight,numl,lsize,beta,alpha,
+		prevDwt,rowptr_w,num_iter);
+}
 
 void gpu_naive_bpgt(double *in,double *tgt,
 		double *out,
