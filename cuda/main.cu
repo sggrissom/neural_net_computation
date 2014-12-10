@@ -254,7 +254,12 @@ int main(int argc, char* argv[])
 
 		cuda_ret = cudaMemcpy(out, out_d, numn * sizeof(double),
 				cudaMemcpyDeviceToHost);
-		if(cuda_ret != cudaSuccess) FATAL("Unable to copy memory to host");
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
+		cuda_ret = cudaMemcpy(weight, weight_d, numw * sizeof(double),
+				cudaMemcpyDeviceToHost);
+		if(cuda_ret != cudaSuccess)
+			FATAL("Unable to set device memory");
 
 		cudaDeviceSynchronize();
 		stopTime(&timer); printf("%f s\n", elapsedTime(timer));
