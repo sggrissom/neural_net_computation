@@ -31,3 +31,4 @@ clean:
 	rm -rf *.o $(EXE)
 
 cleanall: rmout clean
+
