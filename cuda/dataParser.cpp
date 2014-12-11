@@ -9,6 +9,8 @@ using std::ifstream;
 #include <errno.h>
 #include "dataParser.h"
 
+#define MAX_IDS 12
+
 char** indexIDs;
 
 void initArray(int lineSize)
@@ -16,8 +18,8 @@ void initArray(int lineSize)
   indexIDs = new char*[lineSize];
   for(int i = 0; i < lineSize; ++i)
   {
-    indexIDs[i] = new char[10];
-    for (int j = 0; j < 10; ++j)
+    indexIDs[i] = new char[MAX_IDS];
+    for (int j = 0; j < MAX_IDS; ++j)
     {
       indexIDs[i][j] = -1;
     }
@@ -27,7 +29,7 @@ void initArray(int lineSize)
 int getValueID(int index, char c)
 {
   char* IDs = indexIDs[index];
-  for (int i = 0; i < 10; i++)
+  for (int i = 0; i < MAX_IDS; i++)
   {
     if (IDs[i] < 0)
     {
