@@ -6,17 +6,18 @@ using std::endl;
 using std::ifstream;
 
 #include <cstring>
+#include <errno.h>
 #include "dataParser.h"
 
 char** indexIDs;
 
-void initArray()
+void initArray(int lineSize)
 {
-  indexIDs = new char*[MAX_TOKENS_PER_LINE];
-  for(int i = 0; i < MAX_TOKENS_PER_LINE; ++i)
+  indexIDs = new char*[lineSize];
+  for(int i = 0; i < lineSize; ++i)
   {
-    indexIDs[i] = new char[MAX_TOKEN_TYPES];
-    for (int j = 0; j < MAX_TOKEN_TYPES; ++j)
+    indexIDs[i] = new char[10];
+    for (int j = 0; j < 10; ++j)
     {
       indexIDs[i][j] = -1;
     }
@@ -43,14 +44,19 @@ int getValueID(int index, char c)
 }
 
 void getTestData(const char* file,
-    double *trainingDataSet)
+    double *trainingDataSet,
+    int lineSize,
+    int isImage)
 {
-  initArray();
+    printf("get datas.\n");
+  if (!isImage)
+    initArray(lineSize);
 
   std::fstream fin;
   fin.open(file); // open a file
   if (!fin.good())
   {
+        std::cerr << "Error: " << strerror(errno);
     return; // exit if file not found
   }
 
@@ -58,17 +64,23 @@ void getTestData(const char* file,
 
   while (!fin.eof())
   {
-    char buf[MAX_CHARS_PER_LINE];
-    fin.getline(buf, MAX_CHARS_PER_LINE);
+    int buffSize = lineSize*2 + 5;
+    char buf[buffSize];
+    fin.getline(buf, buffSize);
+
+    if (!fin.good()) {
+        std::cerr << "Error: " << strerror(errno);
+        return;
+    }
 
     int n = 0;
 
-    const char* token[MAX_TOKENS_PER_LINE] = {};
+    const char* token[lineSize];
 
     token[0] = strtok(buf, DELIMITER); // first token
     if (token[0]) // zero if line is blank
     {
-      for (n = 1; n < MAX_TOKENS_PER_LINE; n++)
+      for (n = 1; n < lineSize; n++)
       {
         token[n] = strtok(0, DELIMITER); // subsequent tokens
         if (!token[n]) break; // no more tokens
@@ -79,14 +91,16 @@ void getTestData(const char* file,
     {
       if (i)
       {
-        trainingDataSet[line*MAX_TOKENS_PER_LINE + i - 1] = getValueID(i, *token[i]);
+        trainingDataSet[line*lineSize + i - 1] = isImage? (double)(*token[i])/10.0 : getValueID(i, *token[i]);
       } else {
-        trainingDataSet[line*MAX_TOKENS_PER_LINE + MAX_TOKENS_PER_LINE - 1] = getValueID(i, *token[i]);
+        trainingDataSet[line*lineSize + lineSize - 1] = isImage? (double)(*token[i])/10.0 : getValueID(i, *token[i]);
       }
     }
 
     line++;
+
   }
+    printf("done.\n");
 
   fin.close();
 
