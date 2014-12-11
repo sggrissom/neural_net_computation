@@ -68,6 +68,8 @@ int main(int argc, char* argv[])
   int outputSize;
   int dataPoints;
   int testPoints = 8;
+  long num_iter;
+  int modctr;
 
   printf("lets do this!! %d\n", dataSet);
 
@@ -76,6 +78,8 @@ int main(int argc, char* argv[])
               inputSize = 3;
               outputSize = 1;
               dataPoints = 8;
+              modctr = dataPoints;
+              num_iter = 1000000;
 
               double xorData[]={
                 0,    0,  0,  0,
@@ -88,14 +92,16 @@ int main(int argc, char* argv[])
                 1,    1,  1,  1 };
 
               data = xorData;
-
+              num_iter = 100000;
             } break;
     case 2: {
               inputSize = 22;
               outputSize = 1;
               dataPoints = 8124;
+              modctr = 8000;
+              num_iter = 100000;
 
-              double mushroomData[dataPoints *  (inputSize + outputSize)];
+              double mushroomData[(dataPoints + 15) *  (inputSize + outputSize)];
               getTestData("./mushroom.data", mushroomData,(inputSize + outputSize), 0);
               data = mushroomData;
             } break;
@@ -106,6 +112,8 @@ int main(int argc, char* argv[])
               inputSize = 784;
               outputSize = 1;
               dataPoints = 42000;
+              modctr = dataPoints;
+              num_iter = 10000;
               printf("\n\n\nx");
 
               double *imageData = new double[dataPoints *  (inputSize + outputSize)];
@@ -126,7 +134,6 @@ int main(int argc, char* argv[])
   int i;
 
   double beta = 0.3, alpha = 0.1;
-  long num_iter = 1000;
 
   double *out;
   double *delta;
@@ -290,7 +297,7 @@ int main(int argc, char* argv[])
 
     gpu_naive_bpgt(data_d,out_d,delta_d,rowptr_od_d,
         weight_d,numl,lsize_d,beta,alpha,prevDwt_d,
-        rowptr_w_d,num_iter, (inputSize + outputSize), dataPoints);
+        rowptr_w_d,num_iter, (inputSize + outputSize), modctr);
 
 
     cuda_ret = cudaDeviceSynchronize();
@@ -306,7 +313,7 @@ int main(int argc, char* argv[])
 
     gpu_naive_bpgt(data_d,out_d,delta_d,rowptr_od_d,
         weight_d,numl,lsize_d,beta,alpha,prevDwt_d,
-        rowptr_w_d,num_iter, (inputSize + outputSize), dataPoints);
+        rowptr_w_d,num_iter, (inputSize + outputSize), modctr);
 
 
     cuda_ret = cudaDeviceSynchronize();
@@ -345,7 +352,7 @@ int main(int argc, char* argv[])
 
   cout<< "Now using the trained network to make predctions on test data...." << endl << endl;
 
-  if(!IMAGE) {
+  if (dataSet != IMAGE) {
     for (i=0; i<testPoints; i++)
     {
       ffwd(&data[i*(inputSize+outputSize)],
@@ -363,7 +370,7 @@ int main(int argc, char* argv[])
   double guess;
   int correct = 0, incorrect = 0;
 
-  for (i=0; i<dataPoints || i < 8000; i++)
+  for (i=0; i<dataPoints; i++)
   {
     ffwd(&data[i*(inputSize+outputSize)],
         out,weight,numl,lsize, rowptr_od, rowptr_w);
